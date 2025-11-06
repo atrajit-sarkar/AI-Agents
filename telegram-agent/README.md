@@ -16,6 +16,10 @@ An intelligent Telegram bot powered by Google's ADK Agent (Gemini) that provides
 - Copy and move files
 - Batch rename operations
 - File information retrieval
+- **Download individual files from the system**
+- **Download entire directories as ZIP archives**
+- **Upload files directly to the system via Telegram**
+- List files with detailed information (size, type, modified date)
 
 ### 💻 System Operations
 - Execute shell commands remotely
@@ -152,6 +156,20 @@ pythonw main.pyw
 "Get information about data.csv"
 "Change permissions of file.sh to 755"
 ```
+
+**File Upload/Download Operations:**
+```
+"Download config.txt"
+"Send me the file report.pdf"
+"Fetch all files from the Documents folder"
+"Download the entire project directory as a zip"
+"List all files in the Downloads folder"
+```
+
+**File Upload:**
+- Simply send any file/document to the bot
+- The bot will save it to the current working directory
+- Supports all file types
 
 **Security Operations:**
 ```

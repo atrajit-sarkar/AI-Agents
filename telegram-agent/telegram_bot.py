@@ -16,6 +16,9 @@ dotenv.load_dotenv()  # Fixed: Added parentheses to call the function
 BOT_TOKEN = os.getenv("BOT_TOKEN")  # Add your bot token here
 AUTHORIZED_CHAT_IDS = ["7990300718"]  # Add authorized chat IDs here
 
+# Debug mode - set to True to see tool calls and detailed info
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Store conversation context for each user
@@ -245,42 +248,79 @@ def handle_message(message):
         # Collect the final response
         text_parts = []
         tool_messages = []
+        debug_messages = []
+        files_to_send = []
+
         for event in events:
             if not event.content:
                 continue
+
             if event.is_final_response():
                 for part in event.content.parts:
                     if getattr(part, 'text', None):
                         text_parts.append(part.text)
                     elif getattr(part, 'function_response', None):
                         function_response = part.function_response
-                        response_text = str(getattr(function_response, 'response', ''))
-                        if response_text:
-                            tool_messages.append(response_text)
+                        response_payload = getattr(function_response, 'response', None)
+
+                        if isinstance(response_payload, dict):
+                            file_path = response_payload.get("file_path")
+                            if file_path and os.path.exists(file_path):
+                                files_to_send.append({
+                                    "file_path": file_path,
+                                    "caption": response_payload.get("message")
+                                })
+
+                            # Only show response details in debug mode
+                            if DEBUG_MODE:
+                                formatted_response = json.dumps(response_payload, indent=2)
+                                debug_messages.append(formatted_response)
             else:
                 for part in event.content.parts:
                     if getattr(part, 'function_call', None):
-                        function_call = part.function_call
-                        args_repr = function_call.args
-                        try:
-                            args_text = json.dumps(args_repr, indent=2)
-                        except TypeError:
-                            args_text = str(args_repr)
-                        tool_messages.append(
-                            f"🔧 Tool call: {function_call.name}\n{args_text}"
-                        )
+                        # Only show tool calls in debug mode
+                        if DEBUG_MODE:
+                            function_call = part.function_call
+                            args_repr = function_call.args
+                            try:
+                                args_text = json.dumps(args_repr, indent=2)
+                            except TypeError:
+                                args_text = str(args_repr)
+                            debug_messages.append(
+                                f"🔧 Tool call: {function_call.name}\n{args_text}"
+                            )
                     elif getattr(part, 'text', None):
                         text_parts.append(part.text)
+                    elif getattr(part, 'function_response', None):
+                        function_response = part.function_response
+                        response_payload = getattr(function_response, 'response', None)
+
+                        if isinstance(response_payload, dict):
+                            file_path = response_payload.get("file_path")
+                            if file_path and os.path.exists(file_path):
+                                files_to_send.append({
+                                    "file_path": file_path,
+                                    "caption": response_payload.get("message")
+                                })
+
+                            # Only show response details in debug mode
+                            if DEBUG_MODE:
+                                formatted_response = json.dumps(response_payload, indent=2)
+                                debug_messages.append(formatted_response)
         
         agent_response = "\n".join(part.strip() for part in text_parts if part and part.strip())
-        extra_info = "\n\n".join(tool_messages)
         
-        if not agent_response and not extra_info:
-            agent_response = "I processed your request but couldn't generate a response. Please try again."
+        # Only include debug info if DEBUG_MODE is enabled
+        if DEBUG_MODE and debug_messages:
+            extra_info = "\n\n".join(debug_messages)
+            full_message = f"{agent_response}\n\n{extra_info}".strip() if agent_response else extra_info
+        else:
+            full_message = agent_response
+        
+        if not full_message:
+            full_message = "I processed your request but couldn't generate a response. Please try again."
         
         # Send the response
-        full_message = agent_response if not extra_info else f"{agent_response}\n\n{extra_info}".strip()
-        
         if len(full_message) > 4096:
             # Telegram message limit is 4096 characters
             # Save to file and send as document
@@ -295,6 +335,18 @@ def handle_message(message):
         else:
             # Send without Markdown to avoid parsing errors
             bot.send_message(chat_id, full_message)
+
+        for file_info in files_to_send:
+            file_path = file_info.get("file_path")
+            caption = file_info.get("caption")
+            if not file_path or not os.path.exists(file_path):
+                continue
+
+            with open(file_path, 'rb') as f:
+                if caption and len(caption) <= 1024:
+                    bot.send_document(chat_id, f, caption=caption)
+                else:
+                    bot.send_document(chat_id, f)
     
     except Exception as e:
         # Escape special characters in error message

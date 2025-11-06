@@ -20,7 +20,13 @@ system_agent = Agent(
         "Always confirm successful completion of tasks with the user. "
         "When working with file paths, ensure they are valid and exist before performing operations. "
         "Be cautious with destructive operations like delete, encrypt, or execute commands. "
-        "For screen recording, suggest reasonable durations (5-30 seconds) to avoid huge file sizes."
+        "For screen recording, suggest reasonable durations (5-30 seconds) to avoid huge file sizes. "
+        "\n\nFile Download Capabilities:\n"
+        "- Use 'download_file' to prepare individual files for download - the file will be automatically sent to the user.\n"
+        "- Use 'download_directory' to create a zip archive of entire directories for download.\n"
+        "- Use 'list_files_in_directory' to show users what files exist before downloading.\n"
+        "- When users ask to 'download', 'fetch', 'get', or 'send' files, use these tools to fulfill the request.\n"
+        "- Files prepared with these tools will be automatically sent to the user via Telegram."
     ),
     tools=[
         # Directory operations
@@ -40,6 +46,11 @@ system_agent = Agent(
         system_tools.file_exists,
         system_tools.get_file_info,
         system_tools.batch_rename_files,
+        
+        # File download operations
+        system_tools.download_file,
+        system_tools.download_directory,
+        system_tools.list_files_in_directory,
         
         # System operations
         system_tools.execute_command,

@@ -508,7 +508,7 @@ def capture_screenshot(save_path: Optional[str]) -> dict:
         }
 
 
-def record_screen(duration: int, output_file: Optional[str]) -> dict:
+def record_screen(duration: int, output_file: Optional[str] = None) -> dict:
     """Record the screen for a specified duration.
     
     Args:
@@ -639,4 +639,153 @@ def batch_rename_files(directory: str, old_name: str, new_name_prefix: str) -> d
         return {
             "status": "error",
             "message": f"Failed to batch rename files: {str(e)}"
+        }
+
+
+def download_file(file_path: str) -> dict:
+    """Prepare a file for download by returning its path.
+    This function validates that the file exists and is accessible.
+    The actual file transfer will be handled by the Telegram bot.
+    
+    Args:
+        file_path (str): Path to the file to download
+        
+    Returns:
+        dict: Contains status, file path, and metadata for download
+    """
+    try:
+        if not os.path.exists(file_path):
+            return {
+                "status": "error",
+                "message": f"File not found: {file_path}"
+            }
+        
+        if not os.path.isfile(file_path):
+            return {
+                "status": "error",
+                "message": f"Path is not a file: {file_path}"
+            }
+        
+        stat_info = os.stat(file_path)
+        size_mb = round(stat_info.st_size / (1024 * 1024), 2)
+        
+        return {
+            "status": "success",
+            "file_path": file_path,
+            "file_name": os.path.basename(file_path),
+            "size_mb": size_mb,
+            "size_bytes": stat_info.st_size,
+            "message": f"File ready for download: {file_path} ({size_mb} MB)"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to prepare file for download: {str(e)}"
+        }
+
+
+def download_directory(directory_path: str, output_zip: Optional[str] = None) -> dict:
+    """Create a zip archive of a directory for download.
+    
+    Args:
+        directory_path (str): Path to the directory to download
+        output_zip (str, optional): Output zip file name. Defaults to directory name + .zip
+        
+    Returns:
+        dict: Contains status and zip file path
+    """
+    try:
+        if not os.path.exists(directory_path):
+            return {
+                "status": "error",
+                "message": f"Directory not found: {directory_path}"
+            }
+        
+        if not os.path.isdir(directory_path):
+            return {
+                "status": "error",
+                "message": f"Path is not a directory: {directory_path}"
+            }
+        
+        # Determine output zip name
+        if output_zip is None:
+            dir_name = os.path.basename(directory_path.rstrip('/\\'))
+            output_zip = f"{dir_name}.zip"
+        
+        # Create zip archive
+        shutil.make_archive(
+            output_zip.replace('.zip', ''),
+            'zip',
+            directory_path
+        )
+        
+        zip_path = output_zip if output_zip.endswith('.zip') else f"{output_zip}.zip"
+        stat_info = os.stat(zip_path)
+        size_mb = round(stat_info.st_size / (1024 * 1024), 2)
+        
+        return {
+            "status": "success",
+            "file_path": zip_path,
+            "directory": directory_path,
+            "size_mb": size_mb,
+            "message": f"Directory archived for download: {zip_path} ({size_mb} MB)"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to archive directory: {str(e)}"
+        }
+
+
+def list_files_in_directory(directory_path: str) -> dict:
+    """List all files in a directory with detailed information.
+    Useful before downloading to see what files exist.
+    
+    Args:
+        directory_path (str): Path to the directory to list
+        
+    Returns:
+        dict: Contains list of files with sizes
+    """
+    try:
+        if not os.path.exists(directory_path):
+            return {
+                "status": "error",
+                "message": f"Directory not found: {directory_path}"
+            }
+        
+        if not os.path.isdir(directory_path):
+            return {
+                "status": "error",
+                "message": f"Path is not a directory: {directory_path}"
+            }
+        
+        items = []
+        for item_name in os.listdir(directory_path):
+            item_path = os.path.join(directory_path, item_name)
+            stat_info = os.stat(item_path)
+            
+            item_info = {
+                "name": item_name,
+                "type": "directory" if os.path.isdir(item_path) else "file",
+                "size_bytes": stat_info.st_size if os.path.isfile(item_path) else 0,
+                "size_mb": round(stat_info.st_size / (1024 * 1024), 2) if os.path.isfile(item_path) else 0,
+                "modified": time.ctime(stat_info.st_mtime)
+            }
+            items.append(item_info)
+        
+        # Sort: directories first, then files
+        items.sort(key=lambda x: (x["type"] != "directory", x["name"]))
+        
+        return {
+            "status": "success",
+            "directory": directory_path,
+            "items": items,
+            "total_items": len(items),
+            "message": f"Found {len(items)} items in {directory_path}"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to list directory: {str(e)}"
         }
